@@ -7,9 +7,9 @@ DIRG docker methodology
 =======================
 
 DIRG's main purpose of using docker is to provide an easy way of testing our tools. Even though it probably can work
-in a production environment, we have not had it in mind while setting up our docker projects.
+in a production environment, we didn't have it in mind while setting up our docker projects.
 
-The purpose of this documentation is to describe how we have used docker, to make it possible for others to reuse and
+The purpose of this documentation is to describe how we used docker, to make it possible for others to reuse and
 evaluate our methodologies. We appreciates all help in improving our way of using docker.
 
 All our docker projects are built with the same principle, so you can look at any of them to view an example. All
