@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to DIRG docker methodology
-==================================
+DIRG docker methodology
+=======================
 
 DIRG's main purpose of using docker is to provide an easy way of testing our tools. Even though it probably can work
 in a production environment, we have not had it in mind while setting up our docker projects.
