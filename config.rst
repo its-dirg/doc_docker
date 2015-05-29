@@ -19,7 +19,7 @@ Mostly we use this structure::
         run.ps1
 
 The folder etc contains configurations and sometimes also the logs. The logs are mapped to this folder to make it
-easier to read to logs on the host without needing to ssh to the container.
+easier to read the logs on the host without needing to ssh to the container.
 
 For more information about run.sh and run.ps1 view :ref:`run`.
 
