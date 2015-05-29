@@ -1,0 +1,306 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Running a container &mdash; doc_docker 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="doc_docker 0.1 documentation" href="index.html" />
+    <link rel="prev" title="Configuration" href="config.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="config.html" title="Configuration"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">doc_docker 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="running-a-container">
+<span id="run"></span><h1>Running a container<a class="headerlink" href="#running-a-container" title="Permalink to this headline">¶</a></h1>
+<p>To make it easier and quicker to run a container we have created run.sh/run.ps1 script to automatically bind the
+configuration to the container and solve the boot2docker issues for the user.</p>
+<div class="section" id="run-sh">
+<h2>run.sh<a class="headerlink" href="#run-sh" title="Permalink to this headline">¶</a></h2>
+<p>Both run script are examples with port forwarding for boot2docker (not used for linux offcourse). If you don&#8217;t want
+port forwarding you can use the docker IP instead.</p>
+<p>Add this flag to docker run command:</p>
+<div class="highlight-python"><div class="highlight"><pre>-e HOST_IP=$(boot2docker ip)
+</pre></div>
+</div>
+<p>You can get the ip by running $(boot2docker ip) in the terminal.</p>
+<p>Run script for linux and OS X that uses port forwarding to the virutal environment for boot2docker.:</p>
+<div class="highlight-python"><div class="highlight"><pre>#!/bin/bash
+#
+# Use this line to start your container if you want to debug it:
+#   DOCKERARGS=&quot;--entrypoint /bin/bash&quot; bash -x ./run.sh
+
+#Path to return to after the script is executed. Please improve! :)
+c_path=$(pwd)
+#Folder for the script.
+cddir=$(dirname `which $0`)
+#Go to the script folder.
+cd $cddir
+
+# Name of config file
+conf=service_conf.py
+
+# Image name
+image=itsdirg/pefim_sp
+
+# Name of container
+name=pefim_sp
+
+# Relative path to volume
+volume=etc
+
+#This is usable for most of DIRG applications.
+#Finds the server port in the configuration file to be forwarded to the container.
+#For boot2docker it&#39;s also used to forward the port to the virtual environment.
+port=$(cat ${volume}/${conf} | grep PORT | grep -v &quot;#&quot; | head -1 | sed &#39;s/[^0-9]//g&#39;)
+
+dir=$(pwd)
+
+#Fix so docker works on Cent OS and Redhat. :)
+centos_or_redhat=$(cat /etc/centos-release 2&gt;/dev/null | wc -l)
+if [ ${centos_or_redhat} = 1 ]; then
+    $(chcon -Rt svirt_sandbox_file_t ${dir}/${volume})
+fi
+
+# Check if running on mac
+if [ $(uname) = &quot;Darwin&quot; ]; then
+
+    #Forward the server port to the virtual environment.
+    port_check=$(netstat -an | grep ${port} | wc -l)
+    port_b2d=$(VBoxManage showvminfo &quot;boot2docker-vm&quot; --details | grep ${port} | wc -l)
+
+    if [ ${port_b2d} = 0 ]; then
+        if [ ${port_check} = 0 ]; then
+            port_b2d=1
+            VBoxManage controlvm &quot;boot2docker-vm&quot; natpf1 &quot;${name},tcp,127.0.0.1,${port},,${port}&quot;
+        else
+            echo &quot;Port: &quot; ${port} &quot; is already used! Change port in the files &quot; ${conf}
+            exit 1
+        fi
+    fi
+
+    # Check so the boot2docker vm is running
+    if [ $(boot2docker status) != &quot;running&quot; ]; then
+        boot2docker start
+    fi
+    $(boot2docker shellinit)
+else
+    # if running on linux
+    if [ $(id -u) -ne 0 ]; then
+        sudo=&quot;sudo&quot;
+    fi
+fi
+
+if ${sudo} docker ps | awk &#39;{print $NF}&#39; | grep -qx ${name}; then
+    echo &quot;$0: Docker container with name $name already running. Press enter to restart it, or ctrl+c to abort.&quot;
+    read foo
+    #Kill the container if it already is running.
+    ${sudo} docker kill ${name}
+fi
+#Removing container if it exists.
+$sudo docker rm ${name} &gt; /dev/null 2&gt; /dev/null
+
+#Finally we are running the container. :)
+${sudo} docker run --rm=true \
+    --name ${name} \
+    --hostname localhost \
+    -v ${dir}/${volume}:/opt/pefim/etc \
+    -p ${port}:${port} \
+    $DOCKERARGS \
+    -i -t \
+    ${image}
+
+#Delete the boot2docker port forwarding
+if [ $(uname) = &quot;Darwin&quot; ] &amp;&amp; [ ${port_b2d} = 1 ]; then
+    VBoxManage controlvm &quot;boot2docker-vm&quot; natpf1 delete &quot;${name}&quot;
+fi
+
+#Return to starting path. Please improve if you can. :)
+cd $c_path
+</pre></div>
+</div>
+<p>Run script for windows that uses port forwarding to the virutal environment for boot2docker.:</p>
+<div class="highlight-python"><div class="highlight"><pre>param([switch] $debug)
+
+Write-Host &quot;Start script&quot;
+
+#Remove windows CR (avoid file issues between windows and linux/unix.
+$files = gci ./etc *.* -File -rec | where {! $_.ps1} | %{$_.FullName}
+foreach ($file in $files){
+    sed -i &#39;s/\r//&#39; ${file}
+}
+
+# Name of config file
+$conf=&quot;service_conf.py&quot;
+
+# Image name
+$image=&quot;itsdirg/pefim_sp&quot;
+
+# Name of container
+$name=&quot;pefim_sp&quot;
+
+# relative path to volume
+$volume=&quot;etc&quot;
+
+$dir = Convert-Path .
+$dir = $dir -replace &quot;C:&quot;, &quot;/c&quot;
+$dir = $dir -replace &quot;\\&quot;, &quot;/&quot;
+
+#This is usable for most of DIRG applications.
+#Finds the server port in the configuration file to be forwarded to the container.
+#For boot2docker it&#39;s also used to forward the port to the virtual environment.
+$port = cat ${volume}/${conf} | grep PORT | head -1 | sed &#39;s/[^0-9]//g&#39;
+
+$ssh_path = &quot;c:\Program Files (x86)\Git\bin&quot;
+
+#Setting up the port forward.
+[int]$port_check=[convert]::ToInt32($(netstat -an | grep ${port} | wc -l))
+[int]$port_b2d=[convert]::ToInt32($(&amp; &quot;C:\Program Files\Oracle\VirtualBox\VBoxManage.exe&quot; showvminfo &quot;boot2docker-vm&quot; --details | grep ${port} | wc -l))
+IF ($port_b2d -eq 0){
+    IF ($port_check -eq 0 ){
+        $port_b2d=1
+        &amp; &quot;C:\Program Files\Oracle\VirtualBox\VBoxManage.exe&quot; controlvm &quot;boot2docker-vm&quot; natpf1 &quot;${name},tcp,127.0.0.1,${port},,${port}&quot;
+    }
+    ELSE{
+        Write-Host &quot;Port: ${port} is already used! Change port in the file ${conf}&quot;
+        Exit
+    }
+}
+
+IF (!($Env:Path | Select-String -SimpleMatch $ssh_path)){
+    $Env:Path = &quot;${Env:Path};$ssh_path&quot;
+}
+
+#Make sure that boot2docker vm is running.
+IF ($(Boot2Docker status) -ne &quot;running&quot;){
+    $(Boot2Docker start)
+}
+
+#Initiate boot2docker, so you can run docker commands.
+IF ($Env:DOCKER_HOST.length -eq 0){
+    boot2docker shellinit | Invoke-Expression
+}
+
+#Kill the container if it&#39;s running.
+IF ($(docker ps | %{ $_.Split(&#39; &#39;)[0];} | grep ${name} | wc -l) -eq 1){
+    docker kill ${name}
+}
+#Delete the container if it exists.
+docker rm ${name} 2&gt;&amp;1&gt; $null;
+
+mkdir ./etc/logs 2&gt;&amp;1&gt; $null;
+mkdir ./etc/db 2&gt;&amp;1&gt; $null;
+
+$debug_args = &quot;&quot;
+
+IF ($debug){
+    docker run --rm=true --name ${name} --hostname localhost -v ${dir}/${volume}:/opt/pefim/etc -p ${port}:${port} --entrypoint /bin/bash -i -t ${image}
+}
+ELSE{
+    docker run --rm=true --name ${name} --hostname localhost -v ${dir}/${volume}:/opt/pefim/etc -p ${port}:${port} -i -t ${image}
+}
+
+#Removes all port forwarding to the virtual machine.
+IF ($port_b2d -eq 1){
+    # delete port forwarding
+    &amp; &quot;C:\Program Files\Oracle\VirtualBox\VBoxManage.exe&quot; controlvm &quot;boot2docker-vm&quot; natpf1 delete &quot;${name}&quot;
+}
+Write-Host &quot;End script&quot;
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">doc_docker</a></h1>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="build.html">Build image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config.html">Configuration</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="">Running a container</a></li>
+</ul>
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, DIRG.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.3</a>
+      
+      |
+      <a href="_sources/run.txt"
+          rel="nofollow">Page source</a></li>
+    </div>
+
+    
+
+    
+  </body>
+</html>

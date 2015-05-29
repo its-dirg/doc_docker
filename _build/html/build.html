@@ -1,0 +1,245 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Build image &mdash; doc_docker 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="doc_docker 0.1 documentation" href="index.html" />
+    <link rel="next" title="Configuration" href="config.html" />
+    <link rel="prev" title="Welcome to DIRG docker methodology" href="index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="config.html" title="Configuration"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to DIRG docker methodology"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">doc_docker 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="build-image">
+<h1>Build image<a class="headerlink" href="#build-image" title="Permalink to this headline">¶</a></h1>
+<p>For building we use a script called build.sh. We use it to simplifying the build process, specially if you run boot2docker.</p>
+<p>For the script to work you need to setup your Dockerfile confguration in a folder called dockerfiles.</p>
+<div class="section" id="dockerfiles">
+<h2>dockerfiles<a class="headerlink" href="#dockerfiles" title="Permalink to this headline">¶</a></h2>
+<p>In the docker project we always have a folder called dockerfiles with usually this structure:</p>
+<div class="highlight-python"><div class="highlight"><pre>dockerfiles
+    build.sh
+    build.ps1
+    Dockerfile
+    requirements.txt
+    start.sh
+</pre></div>
+</div>
+<div class="section" id="build-sh">
+<h3>build.sh<a class="headerlink" href="#build-sh" title="Permalink to this headline">¶</a></h3>
+<p>Responsible for containing the name of the repository/image and simplifying the use of docker and boot2docker.</p>
+<p>Example of the script:</p>
+<div class="highlight-python"><div class="highlight"><pre>#!/bin/bash
+
+#Get&#39;s the directory for the script build.sh
+dir=$(dirname `which $0`)
+
+#Name of the repository/image
+repository=&quot;itsdirg/pefim_sp&quot;
+
+# Check if running on mac
+if [ $(uname) = &quot;Darwin&quot; ]; then
+
+    # Check so the boot2docker vm is running
+    if [ $(boot2docker status) != &quot;running&quot; ]; then
+        boot2docker start
+    fi
+    #Initiate boot2docker, so you can run docker commands.
+    $(boot2docker shellinit)
+else
+    # if running on linux
+    if [ $(id -u) -ne 0 ]; then
+        sudo=&quot;sudo&quot;
+    fi
+fi
+#Remove the docker image before building a new.
+${sudo} docker rmi -f ${repository}
+#Build a new docker image
+${sudo} docker build -t=${repository} ${dir}
+</pre></div>
+</div>
+</div>
+<div class="section" id="build-ps1">
+<h3>build.ps1<a class="headerlink" href="#build-ps1" title="Permalink to this headline">¶</a></h3>
+<p>Powershell script version of build.sh for windows users.:</p>
+<div class="highlight-python"><div class="highlight"><pre>Write-Host &quot;Start build&quot;
+#Name of the repository/image
+$repository = &quot;itsdirg/pefim_sp&quot;
+
+$ssh_path = &quot;c:\Program Files (x86)\Git\bin&quot;
+IF (!($Env:Path | Select-String -SimpleMatch $ssh_path)){
+    $Env:Path = &quot;${Env:Path};$ssh_path&quot;
+}
+
+# Check so the boot2docker vm is running
+IF ($(Boot2Docker status) -ne &quot;running&quot;){
+    $(Boot2Docker start)
+}
+
+#Initiate boot2docker, so you can run docker commands.
+IF ($Env:DOCKER_HOST.length -eq 0){
+    boot2docker shellinit | Invoke-Expression
+}
+
+#Remove windows CR (avoid file issues between windows and linux/unix
+$files = gci ../ *.* -File -rec | where {! $_.ps1} | %{$_.FullName}
+foreach ($file in $files){
+    sed -i &#39;s/\r//&#39; ${file}
+}
+
+#Remove the docker image before building a new.
+docker rmi -f &quot;${repository}&quot; 2&gt;&amp;1&gt; $null;
+#Build a new docker image
+docker build -t=&quot;${repository}&quot; .
+
+Write-Host &quot;End build&quot;
+</pre></div>
+</div>
+</div>
+<div class="section" id="dockerfile">
+<h3>Dockerfile<a class="headerlink" href="#dockerfile" title="Permalink to this headline">¶</a></h3>
+<p>You have to read the documentation of docker, we will not explain how you write a Dockerfile.</p>
+<p>We will bind one or more volumes for configurations files, logs and other resources that should we want to keep/change on the host.:</p>
+<div class="highlight-python"><div class="highlight"><pre>#DIRG base image (only used for some projects)
+FROM itsdirg/dirg_base
+
+MAINTAINER DIRG &lt;dirg@its.umu.se&gt;
+
+VOLUME [&quot;/opt/my_project_folder/etc&quot;]
+
+ADD requirements.txt /opt/my_project_folder/requirements.txt
+
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends\
+        libsasl2-dev \
+        libldap2-dev \
+        libssl-dev \
+        xmlsec1
+RUN apt-get clean
+RUN rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade pip
+RUN pip install -r /opt/pefim/requirements.txt
+#The project to be installed
+RUN pip install git+https://github.com/its-dirg/my_project.git#egg=my_project
+
+ADD start.sh /start.sh
+
+WORKDIR /
+
+CMD [&quot;bash&quot;, &quot;/start.sh&quot;]
+</pre></div>
+</div>
+</div>
+<div class="section" id="requirements-txt">
+<h3>requirements.txt<a class="headerlink" href="#requirements-txt" title="Permalink to this headline">¶</a></h3>
+<p>This is specific for our python projects and we use it to install the dependencies we have to other python project.</p>
+</div>
+<div class="section" id="start-sh">
+<h3>start.sh<a class="headerlink" href="#start-sh" title="Permalink to this headline">¶</a></h3>
+<p>This script is responsible for starting the server/software in the docker container. This script often runs a start.sh
+script that is added to the volume folder on the host, since how the server is started often depends on how you want</p>
+<blockquote>
+<div>to configure it.</div></blockquote>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">doc_docker</a></h1>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="">Build image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config.html">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="run.html">Running a container</a></li>
+</ul>
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, DIRG.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.3</a>
+      
+      |
+      <a href="_sources/build.txt"
+          rel="nofollow">Page source</a></li>
+    </div>
+
+    
+
+    
+  </body>
+</html>

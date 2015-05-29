@@ -18,18 +18,16 @@ projects are divided into three parts, building the image, setting up the config
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-    build
-    config
-    run
+   build
+   config
+   run
 
 
 Indices and tables
 ==================
 
-* :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
 
 .. raw:: html
